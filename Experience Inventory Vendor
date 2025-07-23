@@ -1,15 +1,15 @@
-// Use this to make a vendor that uses Experience Value Resources to craft / purchase items.
-
 string PREFIX = "data_";
 key dataRead;
 key dataWrite;
 string target_agent;
 string jsonCache = "";
 
-integer COST_GOLD = 100;
-integer COST_BONES = 100;
+// Required items and amounts are defined here for easy changes
+list REQUIRED_ITEMS = ["gold","bones","stone"];
+list REQUIRED_AMOUNTS = [100,4,20];  // 5 gold and 3 bones required
+
 string ITEM_TO_GIVE = "Object";
-integer DIALOG_CHANNEL = -82342;
+integer DIALOG_CHANNEL = -82742;
 list dialogButtons = ["Buy", "Cancel"];
 
 #define BAD_JSON [JSON_INVALID, JSON_NULL]
@@ -18,7 +18,22 @@ default
 {
     state_entry()
     {
-        llSetText("Touch to buy: " + ITEM_TO_GIVE + "\nCost: 5 Gold + 3 Bones", <1,1,0>, 1.0);
+        // Build cost string dynamically
+        integer count = llGetListLength(REQUIRED_ITEMS);
+        string costStr = "";
+        integer i;
+        for (i = 0; i < count; i++)
+        {
+            integer amt = llList2Integer(REQUIRED_AMOUNTS, i);
+            string item = llList2String(REQUIRED_ITEMS, i);
+            costStr += (string)amt + " " + item;
+            if (i < count - 1)
+            {
+                costStr += " + ";
+            }
+        }
+
+        llSetText("Touch to buy: " + ITEM_TO_GIVE + "\nCost: " + costStr, <1,1,0>, 1.0);
     }
 
     touch_start(integer total_number)
@@ -55,35 +70,69 @@ default
 
         if (queryid == dataRead)
         {
-            string goldStr = llJsonGetValue(jsonData, ["gold"]);
-            string bonesStr = llJsonGetValue(jsonData, ["bones"]);
+            integer canAfford = TRUE;
+            integer count = llGetListLength(REQUIRED_ITEMS);
+            integer i;
 
-            if (llListFindList(BAD_JSON, [goldStr, bonesStr]) != -1)
+            // Check affordability
+            for (i = 0; i < count; i++)
             {
-                llRegionSayTo(target_agent, 0, "❌ Your currency data is missing or invalid.");
-                return;
+                string item = llList2String(REQUIRED_ITEMS, i);
+                string valStr = llJsonGetValue(jsonData, [item]);
+                if (llListFindList(BAD_JSON, [valStr]) != -1)
+                {
+                    llRegionSayTo(target_agent, 0, "❌ Your currency data is missing or invalid.");
+                    return;
+                }
+
+                integer have = (integer)valStr;
+                integer cost = llList2Integer(REQUIRED_AMOUNTS, i);
+
+                if (have < cost)
+                {
+                    canAfford = FALSE;
+                    llRegionSayTo(target_agent, 0,
+                        "❌ Not enough " + item + "!\nHave: " + (string)have + " / " + (string)cost);
+                }
             }
 
-            integer gold = (integer)goldStr;
-            integer bones = (integer)bonesStr;
-
-            if (gold >= COST_GOLD && bones >= COST_BONES)
+            if (canAfford)
             {
                 jsonCache = jsonData;
 
+                // Build cost message string
+                string costMsg = "";
+                for (i = 0; i < count; i++)
+                {
+                    integer amt = llList2Integer(REQUIRED_AMOUNTS, i);
+                    string item = llList2String(REQUIRED_ITEMS, i);
+                    costMsg += (string)amt + " " + item;
+                    if (i < count - 1)
+                    {
+                        costMsg += " + ";
+                    }
+                }
+
+                // Build "You have" message string
+                string haveMsg = "";
+                for (i = 0; i < count; i++)
+                {
+                    string item = llList2String(REQUIRED_ITEMS, i);
+                    string valStr = llJsonGetValue(jsonData, [item]);
+                    haveMsg += valStr + " " + item;
+                    if (i < count - 1)
+                    {
+                        haveMsg += ", ";
+                    }
+                }
+
                 string message = "Purchase confirmation:\n\nItem: " + ITEM_TO_GIVE +
-                                 "\nCost: " + (string)COST_GOLD + " Gold + " + (string)COST_BONES + " Bones" +
-                                 "\n\nYou have:\n" + (string)gold + " Gold, " + (string)bones + " Bones" +
+                                 "\nCost: " + costMsg +
+                                 "\n\nYou have:\n" + haveMsg +
                                  "\n\nProceed with purchase?";
 
                 llDialog(target_agent, message, dialogButtons, DIALOG_CHANNEL);
                 llListen(DIALOG_CHANNEL, "", target_agent, "");
-            }
-            else
-            {
-                llRegionSayTo(target_agent, 0,
-                    "❌ Not enough currency!\nGold: " + (string)gold + " / " + (string)COST_GOLD +
-                    "\nBones: " + (string)bones + " / " + (string)COST_BONES);
             }
         }
     }
@@ -94,26 +143,40 @@ default
         {
             if (msg == "Buy")
             {
-                string goldStr = llJsonGetValue(jsonCache, ["gold"]);
-                string bonesStr = llJsonGetValue(jsonCache, ["bones"]);
+                string newData = jsonCache;
+                integer count = llGetListLength(REQUIRED_ITEMS);
+                integer i;
 
-                integer gold = (integer)goldStr;
-                integer bones = (integer)bonesStr;
+                // Deduct costs from currencies
+                for (i = 0; i < count; i++)
+                {
+                    string item = llList2String(REQUIRED_ITEMS, i);
+                    string valStr = llJsonGetValue(newData, [item]);
+                    integer have = (integer)valStr;
+                    integer cost = llList2Integer(REQUIRED_AMOUNTS, i);
+                    integer newAmount = have - cost;
 
-                integer newGold = gold - COST_GOLD;
-                integer newBones = bones - COST_BONES;
-
-                string newData = llJsonSetValue(jsonCache, ["gold"], (string)newGold);
-                newData = llJsonSetValue(newData, ["bones"], (string)newBones);
+                    newData = llJsonSetValue(newData, [item], (string)newAmount);
+                }
 
                 dataWrite = llUpdateKeyValue(PREFIX + (string)target_agent, newData, TRUE, jsonCache);
 
                 llGiveInventory(target_agent, ITEM_TO_GIVE);
 
+                string leftMsg = "";
+                for (i = 0; i < count; i++)
+                {
+                    string item = llList2String(REQUIRED_ITEMS, i);
+                    string valStr = llJsonGetValue(newData, [item]);
+                    leftMsg += item + " left: " + valStr;
+                    if (i < count - 1)
+                    {
+                        leftMsg += ", ";
+                    }
+                }
+
                 llRegionSayTo(target_agent, 0,
-                    "✅ You bought: " + ITEM_TO_GIVE +
-                    "\nGold left: " + (string)newGold +
-                    "\nBones left: " + (string)newBones);
+                    "✅ You bought: " + ITEM_TO_GIVE + "\n" + leftMsg);
             }
             else
             {
