@@ -5,7 +5,7 @@ string target_agent;
 string jsonCache = "";
 
 // Required items and amounts are defined here for easy changes
-list REQUIRED_ITEMS = ["gold","bones","stone"];
+list REQUIRED_ITEMS = ["Gold","Bones","Stone"];
 list REQUIRED_AMOUNTS = [100,4,20];  // 5 gold and 3 bones required
 
 string ITEM_TO_GIVE = "Object";
