@@ -6,7 +6,7 @@ list AdminKeys = [
     "67d888b4-4429-45b6-8f3a-a5c2b5acc07f"
 ];
 
-list ITEM_NAMES = ["Gold","Bones","Stone","Wood","Scales","Gems"]; // <--- Add or remove items here
+list ITEM_NAMES = ["Gold","Bones","Stone","Wood","Scales","Gems","Rusty Keys"]; // <--- Add or remove items here
 
 string target_agent;
 key user;
@@ -18,6 +18,9 @@ string mode;
 #define PREFIX "data_"
 #define CHANNEL -91516
 #define BAD_JSON [JSON_INVALID, JSON_NULL]
+
+// Track which items have changed
+list changedItems = [];
 
 // Generates a default data list like ["Gold", "0", "Bones", "0"]
 list getDefaultData() {
@@ -91,12 +94,18 @@ default {
                     ["Edit", "Target", "Reset", "Close"], CHANNEL
                 );
             } else if (queryid == dataWrite) {
-                llRegionSayTo(user,0, "✅ Experience data successfully created or updated.");
+                //llRegionSayTo(user, 0, "✅ Experience data successfully created or updated.");
+
                 integer i;
-                for (i = 0; i < llGetListLength(ITEM_NAMES); i++) {
-                    string item = llList2String(ITEM_NAMES, i);
-                    llRegionSayTo(user,0, item + ": " + llJsonGetValue(jsonData, [item]));
+                for (i = 0; i < llGetListLength(changedItems); i++) {
+                    string changedItem = llList2String(changedItems, i);
+                    string val = llJsonGetValue(jsonData, [changedItem]);
+                    llRegionSayTo(user, 0, changedItem + ": " + val);
                 }
+
+                // Clear changed items list after reporting
+                changedItems = [];
+
                 llListenRemove(CHANNEL);
             } else {
                 llRegionSayTo(user,0, "⚠️ Unrecognized data query ID.");
@@ -183,9 +192,16 @@ default {
             } else {
                 action = "Removing ";
             }
-            llRegionSayTo(user,0, action + (string)amt + " " + item + " to agent: " + (string)target_agent);
+
+            llRegionSayTo(user, 0, action + (string)amt + " " + item + " to agent: " + (string)target_agent);
 
             llLinksetDataWrite(keyname, (string)cur);
+
+            // Track changed item if not already tracked
+            if (llListFindList(changedItems, [item]) == -1) {
+                changedItems += [item];
+            }
+
             write();
         } else {
             if (llSubStringIndex(mode, "+") == 0 || llSubStringIndex(mode, "-") == 0) {
