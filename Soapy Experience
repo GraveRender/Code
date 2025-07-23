@@ -2,6 +2,13 @@
 // target_agent is set to owner as an example but an agent selector could be implemented
 // If you use this code keep in mind that there is a limit of ~4096 characters for each keypair value so you should keep unlock names as short as possible
 
+list AdminKeys = [
+    "066948da-64bd-4780-9930-7b68078bd40d",
+    "67d888b4-4429-45b6-8f3a-a5c2b5acc07f"
+];
+
+key user;
+
 string target_agent;
 
 key dataRead;
@@ -33,10 +40,16 @@ default
 
     touch_start(integer total_number)
     {
-        if(llDetectedKey(0) == llGetOwner())
+        key toucher = llDetectedKey(0);
+        if (llListFindList(AdminKeys, [(string)toucher]) != -1)
         {
+            user = toucher;
             // Check the expereince for existing agent data
             dataRead = llReadKeyValue(PREFIX+target_agent);
+        }
+        else
+        {
+            user = NULL_KEY;
         }
     }
 
@@ -55,8 +68,8 @@ default
             {
                 integer malformed;
                 
-                string current_Gold = llJsonGetValue(jsonData, ["gold"]);  llOwnerSay("current_Gold: " + current_Gold);
-                string current_Bones = llJsonGetValue(jsonData, ["bones"]); llOwnerSay("current_Bones: " + current_Bones);
+                string current_Gold = llJsonGetValue(jsonData, ["gold"]);  //llInstantMessage(user,"current_Gold: " + current_Gold);
+                string current_Bones = llJsonGetValue(jsonData, ["bones"]); //llInstantMessage(user,"current_Bones: " + current_Bones);
 
                 // Check the retrieved data structure 
                 if(llListFindList(BAD_JSON, [current_Gold]) != -1  || llListFindList(BAD_JSON, [current_Bones]) != -1)
@@ -67,8 +80,8 @@ default
                 // If either Gold or unlocks are malformed, we will start a rewrite dialog
                 if(malformed)
                 {
-                    llListen(CHANNEL, "", llGetOwner(), "");
-                    llDialog(llGetOwner(), 
+                    llListen(CHANNEL, "", user, "");
+                    llDialog(user, 
                         "Malformed data received for agent: " + (string)target_agent + "\n\n" +
                         "Would you like to reset the experience data to defaults?",
                         ["Yes", "No"], CHANNEL
@@ -82,12 +95,12 @@ default
                     llLinksetDataWrite("current_bones", current_Bones);
 
                     // Notify the owner with a dialog containing the retrieved data
-                    llListen(CHANNEL, "", llGetOwner(), "");
-                    llDialog(llGetOwner(), 
+                    llListen(CHANNEL, "", user, "");
+                    llDialog(user, 
                         "Experience Data Retrieved" + "\n\n" + 
                         "Agent: " + (string)target_agent + "\n"
                         ,
-                        ["Edit", "Reset", "Close"]
+                        ["Edit", "Target", "Reset", "Close"]
                         ,
                         CHANNEL
                     );
@@ -98,17 +111,17 @@ default
             else if(queryid == dataWrite)
             {
                 // Data write successful
-                llOwnerSay("Experience data successfully created or updated.");
-                llOwnerSay("Gold: " + llJsonGetValue(jsonData, ["gold"]));
-                llOwnerSay("Bones: " + llJsonGetValue(jsonData, ["bones"]));
+                llInstantMessage(user,"Experience data successfully created or updated.");
+                llInstantMessage(user,"Gold: " + llJsonGetValue(jsonData, ["gold"]));
+                llInstantMessage(user,"Bones: " + llJsonGetValue(jsonData, ["bones"]));
                 llListenRemove(CHANNEL);
             }
             else
             {
                 // Unrecognized query ID
-                llOwnerSay("Data request was not recognized.");
-                llOwnerSay("Query ID: " + (string)queryid);
-                llOwnerSay("Data: " + jsonData);
+                llInstantMessage(user,"Data request was not recognized.");
+                llInstantMessage(user,"Query ID: " + (string)queryid);
+                llInstantMessage(user,"Data: " + jsonData);
                 llListenRemove(CHANNEL);
             }
         }
@@ -117,37 +130,48 @@ default
             // No experience key found for the agent
             if(jsonData == "14")
             {
-                llOwnerSay("No experience data found for agent: " + (string)target_agent);
-                llOwnerSay("Would you like to create new experience data for this agent?");
-                llListen(CHANNEL, "", llGetOwner(), "");
-                llDialog(llGetOwner(), 
+                llInstantMessage(user,"No experience data found for agent: " + (string)target_agent);
+                llInstantMessage(user,"Would you like to create new experience data for this agent?");
+                llListen(CHANNEL, "", user, "");
+                llDialog(user, 
                     "No experience data found for agent: " + (string)target_agent + "\n\n" +
                     "Would you like to create new experience data?",
                     ["Yes", "No"], CHANNEL
                 );
             }
             // Handle error in data retrieval
-            llOwnerSay("Failed to retrieve experience data for agent: " + (string)target_agent);
-            llOwnerSay("Error: " + jsonData);
+            llInstantMessage(user,"Failed to retrieve experience data for agent: " + (string)target_agent);
+            llInstantMessage(user,"Error: " + jsonData);
             llListenRemove(CHANNEL);
         }
     }
 
     listen(integer channel, string name, key id, string message)
     {
+        if (llStringLength(message) == 36 && (key)message != NULL_KEY)
+        {
+            mode = "";
+            target_agent = (key)message;
+            llInstantMessage(user,"Target:"+(string)target_agent);
+        }
         //llOwnerSay(message);
         if(message == "Edit")
         {
             // Open the experience data editor dialog
-            llDialog(llGetOwner(),
+            llDialog(user,
                 "Edit Experience Data for Agent: ",
                 ["Gold","Bones","Close"], CHANNEL
             );
         }
+        else if(message == "Target")
+        {
+            // Add Target Avatar Key
+            llTextBox(user, "Enter the Target Avatar Key:", CHANNEL );
+        }
         else if(message == "Reset")
         {
             // Reset the experience data to defaults
-            llDialog(llGetOwner(),
+            llDialog(user,
                 "Reset user experience data to defaults?",
                 ["Yes", "No"], CHANNEL
             );
@@ -155,7 +179,7 @@ default
         else if(message == "Yes")
         {
             // Reset the experience data to defaults
-            llOwnerSay("Experience data reset to defaults.");
+            llInstantMessage(user,"Experience data reset to defaults.");
             dataWrite = llUpdateKeyValue(PREFIX+target_agent, llList2Json(JSON_OBJECT,DEFAULT_DATA), FALSE, "");
         }
         else if(message == "Close" || message == "No" || message == "Cancel")
@@ -171,7 +195,7 @@ default
         {
             // Open a dialog to edit Gold
             mode = "Gold";
-            llDialog(llGetOwner(),
+            llDialog(user,
                 "Edit Gold for Agent: " + (string)target_agent + "\n\n" +
                 "Current Gold: " + llLinksetDataRead("current_gold") + "\n\n",
                 ["Add", "Remove", "Cancel"], CHANNEL
@@ -181,7 +205,7 @@ default
         {
             // Open a dialog to edit Gold
             mode = "Bones";
-            llDialog(llGetOwner(),
+            llDialog(user,
                 "Edit Gold for Agent: " + (string)target_agent + "\n\n" +
                 "Current Bones: " + llLinksetDataRead("current_bones") + "\n\n",
                 ["Add", "Remove", "Cancel"], CHANNEL
@@ -192,12 +216,12 @@ default
             if(mode == "Gold")
             {
                 // Prompt for amount to add to Gold
-                llTextBox(llGetOwner(), "Enter the amount to add to Gold:", CHANNEL );
+                llTextBox(user, "Enter the amount to add to Gold:", CHANNEL );
             }
             else if(mode == "Bones")
             {
                 // Prompt for amount to add to Gold
-                llTextBox(llGetOwner(), "Enter the amount to add to Bones:", CHANNEL );
+                llTextBox(user, "Enter the amount to add to Bones:", CHANNEL );
             }
             mode = "+" + mode; // Set mode
         }
@@ -206,12 +230,12 @@ default
             if(mode == "Gold")
             {
                 // Prompt for amount to remove from Gold
-                llTextBox(llGetOwner(), "Enter the amount to remove from Gold:", CHANNEL );
+                llTextBox(user, "Enter the amount to remove from Gold:", CHANNEL );
             }
             else if(mode == "Bones")
             {
                 // Prompt for amount to remove from Gold
-                llTextBox(llGetOwner(), "Enter the amount to remove from Bones:", CHANNEL );
+                llTextBox(user, "Enter the amount to remove from Bones:", CHANNEL );
             }
             mode = "-" + mode; // Set mode
         }
@@ -223,7 +247,7 @@ default
                 // Add Gold
                 integer Gold = (integer)llLinksetDataRead("current_gold");
                 Gold += (integer)llLinksetDataRead("temp_data");
-                llOwnerSay("Adding "+ llLinksetDataRead("temp_data") + " Gold to agent: " + (string)target_agent);
+                llInstantMessage(user,"Adding "+ llLinksetDataRead("temp_data") + " Gold to agent: " + (string)target_agent);
                 llLinksetDataWrite("current_gold", (string)Gold);
                 write();
                 //dataWrite = llUpdateKeyValue(PREFIX+target_agent, llList2Json(JSON_OBJECT, ["Gold", (string)Gold, "unlocks", llLinksetDataRead("current_unlocks")]), FALSE, "");
@@ -234,7 +258,7 @@ default
                 integer Gold = (integer)llLinksetDataRead("current_gold");
                 Gold -= (integer)llLinksetDataRead("temp_data");
                 if(Gold < 0) Gold = 0; // Ensure Gold do not go negative
-                llOwnerSay("Removing " + llLinksetDataRead("temp_data") + " Gold from agent: " + (string)target_agent);
+                llInstantMessage(user,"Removing " + llLinksetDataRead("temp_data") + " Gold from agent: " + (string)target_agent);
                 llLinksetDataWrite("current_gold", (string)Gold);
                 write();
                 //dataWrite = llUpdateKeyValue(PREFIX+target_agent, llList2Json(JSON_OBJECT, ["Gold", (string)Gold, "unlocks", llLinksetDataRead("current_unlocks")]), FALSE, "");
@@ -244,7 +268,7 @@ default
                 // Add Bones
                 integer Bones = (integer)llLinksetDataRead("current_bones");
                 Bones += (integer)llLinksetDataRead("temp_data");
-                llOwnerSay("Adding "+ llLinksetDataRead("temp_data") + " Bones to agent: " + (string)target_agent);
+                llInstantMessage(user,"Adding "+ llLinksetDataRead("temp_data") + " Bones to agent: " + (string)target_agent);
                 llLinksetDataWrite("current_bones", (string)Bones);
                 write();
                 //dataWrite = llUpdateKeyValue(PREFIX+target_agent, llList2Json(JSON_OBJECT, ["Bones", (string)Bones, "unlocks", llLinksetDataRead("current_unlocks")]), FALSE, "");
@@ -255,7 +279,7 @@ default
                 integer Bones = (integer)llLinksetDataRead("current_bones");
                 Bones -= (integer)llLinksetDataRead("temp_data");
                 if(Bones < 0) Bones = 0; // Ensure Gold do not go negative
-                llOwnerSay("Removing " + llLinksetDataRead("temp_data") + " Bones from agent: " + (string)target_agent);
+                llInstantMessage(user,"Removing " + llLinksetDataRead("temp_data") + " Bones from agent: " + (string)target_agent);
                 llLinksetDataWrite("current_bones", (string)Bones);
                 write();
                 //dataWrite = llUpdateKeyValue(PREFIX+target_agent, llList2Json(JSON_OBJECT, ["Bones", (string)Bones, "unlocks", llLinksetDataRead("current_unlocks")]), FALSE, "");
@@ -266,7 +290,7 @@ default
             if(llListFindList(["+Gold","-Gold","+Bones","-Bones"],[mode]) > -1)
             {
                 llLinksetDataWrite("temp_data", message);
-                llDialog(llGetOwner(), "Do you want to save this change?", ["Save", "Cancel"], CHANNEL );
+                llDialog(user, "Do you want to save this change?", ["Save", "Cancel"], CHANNEL );
             }
             else 
             {
