@@ -5,8 +5,8 @@ string target_agent;
 string jsonCache = "";
 
 // Required items and amounts are defined here for easy changes
-list REQUIRED_ITEMS = ["Gold","Bones","Stone"];
-list REQUIRED_AMOUNTS = [100,4,20];
+list REQUIRED_ITEMS = ["Gold", "Bones", "Scales"];
+list REQUIRED_AMOUNTS = [100, 4, 20];
 
 string ITEM_TO_GIVE = "Object";
 integer DIALOG_CHANNEL = -82742;
@@ -79,10 +79,12 @@ default
             {
                 string item = llList2String(REQUIRED_ITEMS, i);
                 string valStr = llJsonGetValue(jsonData, [item]);
+
+                // If missing or invalid, add as 0
                 if (llListFindList(BAD_JSON, [valStr]) != -1)
                 {
-                    llRegionSayTo(target_agent, 0, "❌ Your currency data is missing or invalid.");
-                    return;
+                    jsonData = llJsonSetValue(jsonData, [item], "0");
+                    valStr = "0";
                 }
 
                 integer have = (integer)valStr;
