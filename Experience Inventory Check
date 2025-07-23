@@ -1,0 +1,81 @@
+// HUD button for checking current inventory.
+
+string target_agent;
+
+key dataRead;
+
+#define DEFAULT_DATA ["gold", "0", "bones", "0"]
+#define CHANNEL -91516
+#define BAD_JSON [JSON_INVALID, JSON_NULL]
+#define PREFIX "data_"   // Prefix for experience data keys   "data_6f37a320-820e-426f-9e5c-716700e65afc" = {"Gold": "0","Bones": "0"}
+
+default
+{
+    state_entry()
+    {
+        target_agent = llGetOwner();
+    }
+
+    touch_start(integer total_number)
+    {
+        if (llDetectedKey(0) == llGetOwner())
+        {
+            // Check the expereince for existing agent data
+            dataRead = llReadKeyValue(PREFIX+target_agent);
+        }
+    }
+
+    dataserver(key queryid, string data)
+    {
+        // Determine if the data read or write operation was successful
+        integer result = (integer)llGetSubString(data, 0, 0);
+
+        // Retrieve the JSON data from the response, alternatively retrieves the error message if result == 0
+        string jsonData = llGetSubString(data, 2, -1);
+
+        if(result)
+        {
+            // Read operations
+            if(queryid == dataRead)
+            {
+                integer malformed;
+                
+                string current_Gold = llJsonGetValue(jsonData, ["gold"]);  //llInstantMessage(user,"current_Gold: " + current_Gold);
+                string current_Bones = llJsonGetValue(jsonData, ["bones"]); //llInstantMessage(user,"current_Bones: " + current_Bones);
+
+                // Check the retrieved data structure 
+                if(llListFindList(BAD_JSON, [current_Gold]) != -1  || llListFindList(BAD_JSON, [current_Bones]) != -1)
+                {
+                    malformed = TRUE;
+                }
+
+                // If either Gold or unlocks are malformed, we will start a rewrite dialog
+                if(malformed)
+                {
+                    //dataWrite = llUpdateKeyValue(target_agent,DEFAULT_DATA, FALSE, FALSE);
+                }
+                else 
+                {
+                    // Store current Gold and unlocks in linkset data
+                    llLinksetDataWrite("current_gold", current_Gold);
+                    llLinksetDataWrite("current_bones", current_Bones);
+
+                    // Notify the owner with a dialog containing the retrieved data
+                    llOwnerSay("current_Gold: " + current_Gold);
+                    llOwnerSay("current_Bones: " + current_Bones);
+                }
+            }
+            
+            // Write operations
+        }
+        else 
+        {
+            // No experience key found for the agent
+            if(jsonData == "14")
+            {
+                llOwnerSay("No experience data found for agent: " + (string)target_agent);
+            }
+            // Handle error in data retrieval
+        }
+    }
+}
