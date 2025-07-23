@@ -1,0 +1,84 @@
+// Add this to an object and click it to recieve a resource. Change the resources / amounts at the top
+
+string PREFIX = "data_";
+key dataRead;
+key dataWrite;
+string target_agent;
+string jsonCache = "";
+
+list ITEMS = ["Gold","Bones"];              // Item keys
+list AMOUNTS = [50,4];                    // Corresponding amounts
+
+#define BAD_JSON [JSON_INVALID, JSON_NULL]
+
+default
+{
+    touch_start(integer total_number)
+    {
+        target_agent = llDetectedKey(0);
+        llRequestExperiencePermissions(target_agent, "");
+    }
+
+    experience_permissions(key agent)
+    {
+        if (agent == target_agent)
+        {
+            dataRead = llReadKeyValue(PREFIX + (string)target_agent);
+        }
+    }
+
+    dataserver(key queryid, string data)
+    {
+        integer result = (integer)llGetSubString(data, 0, 0);
+        string jsonData = llGetSubString(data, 2, -1);
+
+        if (!result)
+        {
+            if (jsonData == "14")
+            {
+                llRegionSayTo(target_agent, 0, "❌ Experience permissions not granted or no data found.");
+            }
+            else
+            {
+                llRegionSayTo(target_agent, 0, "❌ Data error: " + jsonData);
+            }
+            return;
+        }
+
+        if (queryid == dataRead)
+        {
+            // Initialize if empty or invalid
+            if (llListFindList(BAD_JSON, [jsonData]) != -1 || jsonData == "")
+            {
+                jsonData = "{}";
+            }
+
+            string updatedData = jsonData;
+            string outputMessage = "✅ You received:\n";
+
+            integer i;
+            for (i = 0; i < llGetListLength(ITEMS); ++i)
+            {
+                string item = llList2String(ITEMS, i);
+                integer amountToAdd = llList2Integer(AMOUNTS, i);
+
+                string val = llJsonGetValue(updatedData, [item]);
+                integer cur = 0;
+                if (llListFindList(BAD_JSON, [val]) == -1)
+                {
+                    cur = (integer)val;
+                }
+
+                integer newTotal = cur + amountToAdd;
+                updatedData = llJsonSetValue(updatedData, [item], (string)newTotal);
+                outputMessage += (string)amountToAdd + " " + item + " (New total: " + (string)newTotal + ")\n";
+            }
+
+            // Force overwrite without version checking
+            jsonCache = updatedData;
+            dataWrite = llUpdateKeyValue(PREFIX + (string)target_agent, jsonCache, FALSE, "");
+
+            llRegionSayTo(target_agent, 0, outputMessage);
+        }
+    }
+}
