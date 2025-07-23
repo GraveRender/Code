@@ -1,0 +1,124 @@
+// Use this to make a vendor that uses Experience Value Resources to craft / purchase items.
+
+string PREFIX = "data_";
+key dataRead;
+key dataWrite;
+string target_agent;
+string jsonCache = "";
+
+integer COST_GOLD = 100;
+integer COST_BONES = 100;
+string ITEM_TO_GIVE = "Object";
+integer DIALOG_CHANNEL = -82342;
+list dialogButtons = ["Buy", "Cancel"];
+
+#define BAD_JSON [JSON_INVALID, JSON_NULL]
+
+default
+{
+    state_entry()
+    {
+        llSetText("Touch to buy: " + ITEM_TO_GIVE + "\nCost: 5 Gold + 3 Bones", <1,1,0>, 1.0);
+    }
+
+    touch_start(integer total_number)
+    {
+        target_agent = llDetectedKey(0);
+        llRequestExperiencePermissions(target_agent, "");
+    }
+
+    experience_permissions(key agent)
+    {
+        if (agent == target_agent)
+        {
+            dataRead = llReadKeyValue(PREFIX + (string)target_agent);
+        }
+    }
+
+    dataserver(key queryid, string data)
+    {
+        integer result = (integer)llGetSubString(data, 0, 0);
+        string jsonData = llGetSubString(data, 2, -1);
+
+        if (!result)
+        {
+            if (jsonData == "14")
+            {
+                llRegionSayTo(target_agent, 0, "❌ Experience permissions not granted or no data found.");
+            }
+            else
+            {
+                llRegionSayTo(target_agent, 0, "❌ Data error: " + jsonData);
+            }
+            return;
+        }
+
+        if (queryid == dataRead)
+        {
+            string goldStr = llJsonGetValue(jsonData, ["gold"]);
+            string bonesStr = llJsonGetValue(jsonData, ["bones"]);
+
+            if (llListFindList(BAD_JSON, [goldStr, bonesStr]) != -1)
+            {
+                llRegionSayTo(target_agent, 0, "❌ Your currency data is missing or invalid.");
+                return;
+            }
+
+            integer gold = (integer)goldStr;
+            integer bones = (integer)bonesStr;
+
+            if (gold >= COST_GOLD && bones >= COST_BONES)
+            {
+                jsonCache = jsonData;
+
+                string message = "Purchase confirmation:\n\nItem: " + ITEM_TO_GIVE +
+                                 "\nCost: " + (string)COST_GOLD + " Gold + " + (string)COST_BONES + " Bones" +
+                                 "\n\nYou have:\n" + (string)gold + " Gold, " + (string)bones + " Bones" +
+                                 "\n\nProceed with purchase?";
+
+                llDialog(target_agent, message, dialogButtons, DIALOG_CHANNEL);
+                llListen(DIALOG_CHANNEL, "", target_agent, "");
+            }
+            else
+            {
+                llRegionSayTo(target_agent, 0,
+                    "❌ Not enough currency!\nGold: " + (string)gold + " / " + (string)COST_GOLD +
+                    "\nBones: " + (string)bones + " / " + (string)COST_BONES);
+            }
+        }
+    }
+
+    listen(integer channel, string name, key id, string msg)
+    {
+        if (channel == DIALOG_CHANNEL && id == target_agent)
+        {
+            if (msg == "Buy")
+            {
+                string goldStr = llJsonGetValue(jsonCache, ["gold"]);
+                string bonesStr = llJsonGetValue(jsonCache, ["bones"]);
+
+                integer gold = (integer)goldStr;
+                integer bones = (integer)bonesStr;
+
+                integer newGold = gold - COST_GOLD;
+                integer newBones = bones - COST_BONES;
+
+                string newData = llJsonSetValue(jsonCache, ["gold"], (string)newGold);
+                newData = llJsonSetValue(newData, ["bones"], (string)newBones);
+
+                dataWrite = llUpdateKeyValue(PREFIX + (string)target_agent, newData, TRUE, jsonCache);
+
+                llGiveInventory(target_agent, ITEM_TO_GIVE);
+
+                llRegionSayTo(target_agent, 0,
+                    "✅ You bought: " + ITEM_TO_GIVE +
+                    "\nGold left: " + (string)newGold +
+                    "\nBones left: " + (string)newBones);
+            }
+            else
+            {
+                llRegionSayTo(target_agent, 0, "❌ Purchase canceled.");
+            }
+        }
+    }
+}
