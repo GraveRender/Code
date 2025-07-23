@@ -1,4 +1,4 @@
 - This Experience Inventory System for LSL will allow you to set resource values to individual avatar keys that are tied to your experience.
 - The example here has Gold and Bones, but you will need to add other resources as needed manually.
 - The admin terminal script has admin keys for who can use the terminal at the top. Change those.
-- The HUD button lets users check their current inventory. I suggest adding this to an experience HUD that auto attaches when user enter the sim.
+- The HUD button lets users check their current inventory. I suggest adding this to an experience HUD that auto attaches when users enter the sim.
