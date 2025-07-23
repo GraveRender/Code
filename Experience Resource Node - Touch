@@ -1,13 +1,11 @@
-// Add this to an object and click it to recieve a resource. Change the resources / amounts at the top
-
 string PREFIX = "data_";
 key dataRead;
 key dataWrite;
 string target_agent;
 string jsonCache = "";
 
-list ITEMS = ["Gold","Bones"];              // Item keys
-list AMOUNTS = [50,4];                    // Corresponding amounts
+list ITEMS = ["Gold","Bones","Scales"];              // Item keys
+list AMOUNTS = [50,50,50];                    // Corresponding amounts
 
 #define BAD_JSON [JSON_INVALID, JSON_NULL]
 
