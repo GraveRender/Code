@@ -9,7 +9,7 @@ key dataWrite;
 
 string mode;
 
-#define DEFAULT_DATA ["Gold", "Bones", "0", "unlocks", ""]
+#define DEFAULT_DATA ["Gold", "0", "Bones", "0", "unlocks", ""]
 #define CHANNEL -91516
 #define BAD_JSON [JSON_INVALID, JSON_NULL]
 #define PREFIX "data_"   // Prefix for experience data keys   "data_6f37a320-820e-426f-9e5c-716700e65afc" = {"Gold": "0", "unlocks": ""}
